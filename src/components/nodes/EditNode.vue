@@ -7,9 +7,7 @@
     <q-form @submit="saveChanges">
       <q-card-section class="q-py-sm">
         <div class="row justify-between items-center">
-          <div class="items-center text-h6">
-            {{ _node.id ? 'Edit Node' : 'Add Node' }}
-          </div>
+          <div class="items-center text-h6">Edit Node</div>
           <div>
             <q-btn flat round icon="close" v-close-popup />
           </div>
@@ -35,7 +33,7 @@
           map-options
           :rules="[(val) => !!val || 'Field is required']"
           hide-bottom-space
-        ></q-select>
+        />
         <q-input
           outlined
           hide-bottom-space
@@ -70,18 +68,6 @@
           hide-hint
           hide-bottom-space
         />
-
-        <q-input
-          v-if="!_node.id"
-          :rules="[
-            (val) =>
-              validateMachineKey(val) || 'Format have to be HEX, 64 char',
-          ]"
-          outlined
-          hide-bottom-space
-          v-model="_node.machine_key"
-          label="Machine Key"
-        />
       </q-card-section>
       <q-card-actions vertical>
         <q-btn
@@ -100,7 +86,7 @@
 <script setup lang="ts">
 import { extend } from 'quasar'
 import { QuasascaleNode } from 'src/types/Database'
-defineOptions({ name: 'node-dialog' })
+defineOptions({ name: 'edit-node-dialog' })
 const props = defineProps<{
   onDialogOK: (payload: QuasascaleNode) => void
   componentProps: {
@@ -143,12 +129,4 @@ function addNewTag(
   }
   done(tag, 'add-unique')
 }
-function validateMachineKey(key: string) {
-  const regex = /^[a-fA-F0-9]{64}$/
-  return regex.test(key)
-}
-onMounted(() => {
-  if (props.componentProps.node.user?.id === '0')
-    _node.value.user = users.value[0]
-})
 </script>

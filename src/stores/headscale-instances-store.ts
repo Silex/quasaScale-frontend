@@ -17,12 +17,18 @@ export const useHeadscaleInstancesStore = defineStore(
     }
 
     async function addHeadscaleInstance(headscale: QuasascaleInstance) {
-      const headscale_instance_id = await db.headscale_instances.add({
-        ...headscale,
-      })
+      await db.headscale_instances.add(headscale)
       await getHeadscaleInstances()
       if (instances.value.length === 1) {
-        activateHeadscale({ ...headscale, id: headscale_instance_id })
+        activateHeadscale(instances.value[0])
+      }
+    }
+
+    async function bulkAddHeadscaleInstances(data: QuasascaleInstance[]) {
+      await db.headscale_instances.bulkAdd(data)
+      await getHeadscaleInstances()
+      if (instances.value.length === 1) {
+        activateHeadscale(instances.value[0])
       }
     }
 
@@ -76,6 +82,7 @@ export const useHeadscaleInstancesStore = defineStore(
       deleteHeadscaleInstance,
       updateHeadscaleInstance,
       activateHeadscale,
+      bulkAddHeadscaleInstances,
     }
   },
 )

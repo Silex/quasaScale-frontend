@@ -1,6 +1,7 @@
 <template>
   <q-page padding>
     <q-table
+      ref="table"
       :grid="grid_view || $q.screen.lt.sm"
       title="Nodes"
       class="rounded-xl"
@@ -16,7 +17,7 @@
       hide-pagination
       binary-state-sort
     >
-      <template v-slot:top-right>
+      <template v-slot:top-right v-if="$q.screen.gt.sm">
         <q-input
           borderless
           dense
@@ -33,11 +34,74 @@
         <q-btn
           @click="addNode"
           icon="add"
-          :label="$q.screen.gt.sm ? 'New Node' : ''"
+          label="New Node"
           color="primary"
           outline
-          :dense="$q.screen.lt.sm"
         />
+      </template>
+      <template #top v-else>
+        <div class="row justify-between full-width">
+          <div class="title-text q-table__title">Nodes</div>
+          <q-btn @click="addNode" icon="add" color="primary" outline dense />
+        </div>
+        <div class="row full-width q-pt-sm">
+          <q-toggle
+            v-model="online"
+            @update:model-value="showOnlineOnly"
+            dense
+            :color="
+              online === true ? 'positive' : online === false ? 'negative' : ''
+            "
+            toggle-indeterminate
+            keep-color
+          />
+          <q-input
+            borderless
+            dense
+            debounce="300"
+            v-model="filter"
+            placeholder="Search"
+            color="white"
+            class="q-mx-md col"
+            clearable
+          >
+            <template v-slot:append>
+              <q-icon name="search" />
+            </template>
+          </q-input>
+
+          <q-btn icon="swap_vert" dense flat class="q-my-auto">
+            <q-menu fit auto-close class="dialog-delete rounded-xl">
+              <q-list class="min-w-150px">
+                <q-item>
+                  <q-item-section>Sort By</q-item-section>
+                </q-item>
+                <q-separator />
+                <q-item clickable @click="table?.sort('id')">
+                  <q-item-section>id</q-item-section>
+                </q-item>
+                <q-item clickable @click="table?.sort('name')">
+                  <q-item-section>name</q-item-section>
+                </q-item>
+                <q-item clickable @click="table?.sort('lastseen')">
+                  <q-item-section>last seen</q-item-section>
+                </q-item>
+                <q-item clickable @click="table?.sort('ipv4')">
+                  <q-item-section>IPv4</q-item-section>
+                </q-item>
+                <q-item clickable @click="table?.sort('ipv6')">
+                  <q-item-section>IPv6</q-item-section>
+                </q-item>
+                <q-item clickable @click="table?.sort('user')">
+                  <q-item-section>user</q-item-section>
+                </q-item>
+                <q-item clickable @click="table?.sort('tags')">
+                  <q-item-section>forced tags</q-item-section>
+                </q-item>
+              </q-list>
+            </q-menu>
+          </q-btn>
+        </div>
       </template>
       <template #header-cell-id="props">
         <q-th auto-width :props="props">
@@ -46,8 +110,12 @@
             @update:model-value="showOnlineOnly"
             dense
             class="q-mr-sm"
-            color="positive"
+            :color="
+              online === true ? 'positive' : online === false ? 'negative' : ''
+            "
             size="xs"
+            toggle-indeterminate
+            keep-color
           />
           <span @click="props.sort">ID</span>
         </q-th>
@@ -174,38 +242,72 @@
                   />
                 </template>
               </div>
-              <div class="row gap-2px">
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="secondary"
-                  icon="edit"
-                  @click="editNode(props.row, props.rowIndex)"
-                >
-                  <q-tooltip> Edit Node </q-tooltip>
-                </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="warning"
-                  icon="timer_off"
-                  @click="expireNode(props.row)"
-                >
-                  <q-tooltip> Expire Node </q-tooltip>
-                </q-btn>
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="negative"
-                  icon="delete"
-                  @click="removeNode(props.row, props.rowIndex)"
-                >
-                  <q-tooltip> Delete Node </q-tooltip>
-                </q-btn>
-              </div>
+              <q-btn icon="more_vert" dense round flat>
+                <q-menu auto-close class="dialog-delete rounded-xl">
+                  <q-list style="min-width: 100px">
+                    <q-item
+                      clickable
+                      @click="editNode(props.row, props.rowIndex)"
+                    >
+                      <q-item-section avatar>
+                        <q-icon color="secondary" name="edit" />
+                      </q-item-section>
+                      <q-item-section>Edit Node</q-item-section>
+                    </q-item>
+
+                    <q-item clickable @click="expireNode(props.row)">
+                      <q-item-section avatar>
+                        <q-icon color="warning" name="timer_off" />
+                      </q-item-section>
+                      <q-item-section>Expire Node</q-item-section>
+                    </q-item>
+
+                    <q-item
+                      clickable
+                      @click="removeNode(props.row, props.rowIndex)"
+                    >
+                      <q-item-section avatar>
+                        <q-icon color="negative" name="delete" />
+                      </q-item-section>
+                      <q-item-section>Delete Node</q-item-section>
+                    </q-item>
+
+                    <q-separator v-if="props.row.routes > 0" />
+
+                    <q-item
+                      clickable
+                      @click="manageRoutes(props.row)"
+                      v-if="props.row.routes > 0"
+                    >
+                      <q-item-section avatar>
+                        <q-icon color="positive" name="route" />
+                      </q-item-section>
+                      <q-item-section>Routes</q-item-section>
+                    </q-item>
+
+                    <q-separator />
+
+                    <q-item clickable @click="copyName(props.row.name)">
+                      <q-item-section avatar>
+                        <q-icon color="primary" name="content_copy" />
+                      </q-item-section>
+                      <q-item-section>FQDN</q-item-section>
+                    </q-item>
+                    <q-item clickable @click="copyToClipboard(props.row.ipv4)">
+                      <q-item-section avatar>
+                        <q-icon color="primary" name="content_copy" />
+                      </q-item-section>
+                      <q-item-section>IPv4</q-item-section>
+                    </q-item>
+                    <q-item clickable @click="copyToClipboard(props.row.ipv6)">
+                      <q-item-section avatar>
+                        <q-icon color="primary" name="content_copy" />
+                      </q-item-section>
+                      <q-item-section>IPv6</q-item-section>
+                    </q-item>
+                  </q-list>
+                </q-menu>
+              </q-btn>
             </div>
             <div class="row justify-between">
               <div class="column gap-5px">
@@ -230,20 +332,6 @@
                   <span class="text-info">{{ props.row.ipv6 }} </span>
                 </div>
               </div>
-
-              <div class="column justify-end">
-                <q-btn
-                  flat
-                  round
-                  dense
-                  color="positive"
-                  icon="route"
-                  @click="manageRoutes(props.row)"
-                  v-if="props.row.routes > 0"
-                >
-                  <q-tooltip> Manage Routes </q-tooltip>
-                </q-btn>
-              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -253,13 +341,15 @@
 </template>
 
 <script setup lang="ts">
-import { extend, QTableColumn } from 'quasar'
-import NodeConfiguration from 'src/components/nodes/NodeConfiguration.vue'
+import { extend, QTable, QTableColumn } from 'quasar'
+import AddNode from 'src/components/nodes/AddNode.vue'
+import EditNode from 'src/components/nodes/EditNode.vue'
 import RouteConfigurationComponent from 'src/components/nodes/RouteConfigurationComponent.vue'
-import { QuasascaleNode } from 'src/types/Database'
+import { QuasascaleAddNode, QuasascaleNode } from 'src/types/Database'
 import { is, copyToClipboard } from 'quasar'
 import { AxiosError } from 'axios'
 import { api } from 'boot/axios'
+import { Addr } from 'ip.js'
 const { tailnetName } = storeToRefs(useDnsSettingsStore())
 const { getDNSSettings } = useDnsSettingsStore()
 const filter = ref('')
@@ -275,6 +365,8 @@ const {
 } = useNodesStore()
 
 const nodes = ref<QuasascaleNode[]>([])
+const table = ref<QTable>()
+const { users } = storeToRefs(useUsersStore())
 const cols = ref<QTableColumn[]>([
   {
     name: 'id',
@@ -294,11 +386,12 @@ const cols = ref<QTableColumn[]>([
     sortable: true,
   },
   {
-    name: 'lastSeen',
+    name: 'lastseen',
     required: true,
     label: 'Last Seen',
     field: 'node_last_seen',
     align: 'left',
+    sortable: true,
   },
   {
     name: 'ipv4',
@@ -307,7 +400,7 @@ const cols = ref<QTableColumn[]>([
     field: 'ipv4',
     align: 'left',
     sortable: true,
-    sort: (a, b) => sortIPv4(a, b),
+    sort: (a, b) => sortIP(a, b),
   },
   {
     name: 'ipv6',
@@ -315,6 +408,8 @@ const cols = ref<QTableColumn[]>([
     label: 'IPv6',
     field: 'ipv6',
     align: 'left',
+    sortable: true,
+    sort: (a, b) => sortIP(a, b),
   },
   {
     name: 'user',
@@ -331,6 +426,7 @@ const cols = ref<QTableColumn[]>([
     label: 'Forced Tags',
     field: 'forced_tags',
     align: 'left',
+    sortable: true,
   },
   {
     name: 'actions',
@@ -340,26 +436,17 @@ const cols = ref<QTableColumn[]>([
   },
 ])
 
-const online = ref(false)
-function sortIPv4(a: string, b: string) {
-  const num1 = Number(
-    a
-      .split('.')
-      .map((num) => `000${num}`.slice(-3))
-      .join(''),
-  )
-  const num2 = Number(
-    b
-      .split('.')
-      .map((num) => `000${num}`.slice(-3))
-      .join(''),
-  )
-  return num1 - num2
+const online = ref(null)
+
+function sortIP(a: string, b: string) {
+  const ipa = new Addr(a)
+  const ipb = new Addr(b)
+  return ipa.compare2Ip(ipb)
 }
 
 function editNode(node: QuasascaleNode, index: number): void {
   useDialog()
-    .show(NodeConfiguration, {
+    .show(EditNode, {
       node: node,
     })
     .onOk(async (updatedNode: QuasascaleNode) => {
@@ -382,27 +469,15 @@ function editNode(node: QuasascaleNode, index: number): void {
       } catch {}
     })
 }
+
 function addNode(): void {
-  const node: Omit<QuasascaleNode, 'id'> = {
-    name: '',
-    online: false,
-    last_seen: new Date().toISOString(),
-    ipv4: '',
-    ipv6: '',
-    machine_key: '',
-    forced_tags: [],
-    user: { id: '0', name: '', createdAt: '' },
-    routes: 0,
-  }
+  if (users.value.length === 0) return
   useDialog()
-    .show(NodeConfiguration, {
-      node: node,
-    })
-    .onOk(async (node: QuasascaleNode) => {
+    .show(AddNode)
+    .onOk(async (node: QuasascaleAddNode) => {
       try {
         await createNode(node)
-        nodes.value.push(node)
-        useNotify('Node added successfully', 'check')
+        useNotify('Node created successfully', 'check')
       } catch (error) {
         useNotify(
           'An error has occcured while adding the node',
@@ -466,15 +541,18 @@ function formatTag(tag: string) {
 
 onMounted(async () => {
   nodes.value = await getNodes()
+  nodes.value.sort(
+    (a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime(),
+  )
+  extend(true, initial_nodes, nodes.value)
 })
 
 const initial_nodes: QuasascaleNode[] = []
 function showOnlineOnly(value: boolean) {
-  if (value) {
-    extend(true, initial_nodes, nodes.value)
-    nodes.value = nodes.value.filter((node) => node.online)
+  if (value === true || value === false) {
+    nodes.value = initial_nodes.filter((node) => node.online === value)
   } else {
-    extend(true, nodes.value, initial_nodes)
+    nodes.value = initial_nodes
   }
 }
 
@@ -485,3 +563,10 @@ async function copyName(name: string) {
   copyToClipboard(`${name}.${tailnetName.value}`)
 }
 </script>
+<style lang="scss">
+.q-toggle__inner--falsy {
+  .q-toggle__thumb:after {
+    background-color: $negative;
+  }
+}
+</style>

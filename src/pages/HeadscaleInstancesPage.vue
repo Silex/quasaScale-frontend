@@ -1,5 +1,6 @@
 <template>
   <q-page padding>
+    <input type="file" id="uploader" name="file" accept=".json" hidden />
     <q-table
       :grid="grid_view || $q.screen.lt.sm"
       :title="$q.screen.lt.sm ? 'H. Inst.' : 'Headscale Instances'"
@@ -15,7 +16,7 @@
       bordered
       hide-pagination
     >
-      <template v-slot:top-right>
+      <template v-slot:top-right v-if="$q.screen.gt.sm">
         <q-input
           borderless
           dense
@@ -30,6 +31,25 @@
           </template>
         </q-input>
         <q-btn
+          :icon="mdiFileExportOutline"
+          outline
+          color="primary"
+          dense
+          @click="exportInstances"
+        >
+          <q-tooltip>Export headscale instances</q-tooltip>
+        </q-btn>
+        <q-btn
+          :icon="mdiFileImportOutline"
+          outline
+          color="secondary"
+          dense
+          class="q-mx-md"
+          @click="uploader?.click()"
+        >
+          <q-tooltip>Import headscale instances</q-tooltip>
+        </q-btn>
+        <q-btn
           icon="add"
           :label="$q.screen.gt.sm ? 'New Headscale' : ''"
           color="primary"
@@ -37,6 +57,42 @@
           :dense="$q.screen.lt.sm"
           @click="add"
         />
+      </template>
+      <template #top v-else>
+        <div class="row full-width">
+          <div class="title-text q-table__title">Headscale Instances</div>
+          <q-space />
+          <q-btn
+            :icon="mdiFileExportOutline"
+            outline
+            color="primary"
+            dense
+            @click="exportInstances"
+          />
+
+          <q-btn
+            :icon="mdiFileImportOutline"
+            outline
+            color="secondary"
+            dense
+            @click="uploader?.click()"
+            class="q-mx-md"
+          />
+          <q-btn @click="add" icon="add" color="primary" outline dense />
+        </div>
+        <q-input
+          borderless
+          dense
+          debounce="300"
+          v-model="filter"
+          placeholder="Search"
+          color="white"
+          class="full-width q-mt-sm"
+        >
+          <template v-slot:append>
+            <q-icon name="search" />
+          </template>
+        </q-input>
       </template>
       <template #body="props">
         <q-tr :props="props">
@@ -176,6 +232,11 @@
 import { QTableColumn } from 'quasar'
 import HeadscaleInstanceConfiguration from 'src/components/headscale-instances/HeadscaleInstanceConfiguration.vue'
 import { QuasascaleInstance } from 'src/types/Database'
+import {
+  mdiFileExportOutline,
+  mdiFileImportOutline,
+} from '@quasar/extras/mdi-v7'
+import { saveAs } from 'file-saver'
 
 const { grid_view } = storeToRefs(useSettingsStore())
 const { instances } = storeToRefs(useHeadscaleInstancesStore())
@@ -186,6 +247,7 @@ const {
   updateHeadscaleInstance,
   deleteHeadscaleInstance,
   activateHeadscale,
+  bulkAddHeadscaleInstances,
 } = useHeadscaleInstancesStore()
 const filter = ref('')
 const cols = ref<QTableColumn[]>([
@@ -231,7 +293,6 @@ async function add(): Promise<void> {
     .show(HeadscaleInstanceConfiguration, {
       headscale_instance: {
         headscale_api_key: '',
-        headscale_url: '',
         quasascale_backend_url: '',
         name: '',
       },
@@ -284,5 +345,60 @@ async function update(headscale_instance: QuasascaleInstance) {
         )
       }
     })
+}
+
+function exportInstances() {
+  const hinstances: Omit<QuasascaleInstance, 'id'>[] = []
+  instances.value.forEach((inst) => {
+    hinstances.push({
+      name: inst.name,
+      quasascale_backend_url: inst.quasascale_backend_url,
+      headscale_api_key: inst.headscale_api_key,
+      active: false,
+    })
+  })
+  var fileToSave = new Blob([JSON.stringify(hinstances, undefined, 2)], {
+    type: 'application/json',
+  })
+  saveAs(fileToSave, 'headscale-instances.json')
+}
+
+const uploader = ref<HTMLInputElement | null>(null)
+onMounted(() => {
+  uploader.value = document.getElementById('uploader') as HTMLInputElement
+  uploader.value.addEventListener('change', importInstances)
+})
+
+onUnmounted(() => {
+  uploader.value?.removeEventListener('change', importInstances)
+})
+
+function importInstances() {
+  if (!uploader.value) return
+  if (!uploader.value.files) return
+  const file = uploader.value.files[0]
+  if (file.type !== 'application/json') {
+    useNotify('Wrong file type, it must be json', 'error', 'negative')
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = async (ev: ProgressEvent<FileReader>) => {
+    const hinstances = JSON.parse(ev.target?.result as string)
+    if (!Array.isArray(hinstances)) {
+      useNotify('An array is expected, got no array', 'error', 'negative')
+      return
+    }
+    try {
+      await bulkAddHeadscaleInstances(hinstances)
+    } catch (ex) {
+      useNotify(
+        'An error happened while importing headscale instances',
+        'error',
+        'negative',
+      )
+      console.error(ex)
+    }
+  }
+  reader.readAsText(file)
 }
 </script>

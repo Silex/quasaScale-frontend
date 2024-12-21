@@ -17,6 +17,11 @@ export interface QuasascaleNode {
   routes: number
 }
 
+export interface QuasascaleAddNode {
+  user: User
+  machine_key: string
+}
+
 export interface QuasascaleRoute {
   id: string
   prefix: string

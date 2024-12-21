@@ -1,6 +1,11 @@
 //create pinia store called useLogsStore
 import { defineStore } from 'pinia'
-import { IP, QuasascaleNode, QuasascaleRoute } from 'src/types/Database'
+import {
+  IP,
+  QuasascaleAddNode,
+  QuasascaleNode,
+  QuasascaleRoute,
+} from 'src/types/Database'
 import { api } from 'boot/axios'
 import { HeadscaleRoute } from 'src/types/headscale-types'
 import { AxiosError } from 'axios'
@@ -49,15 +54,12 @@ export const useNodesStore = defineStore('nodes', () => {
     }
   }
 
-  async function createNode(node: QuasascaleNode): Promise<void> {
+  async function createNode(node: QuasascaleAddNode): Promise<void> {
     try {
-      const resp = await api.post(
+      await api.post(
         `/node/register?user=${node.user?.name}&key=mkey:${node.machine_key}`,
       )
-      node.id = resp.data.node.id
-      await renameNode(node)
-      await updateTags(node)
-      useNotify('Node created successfully', 'check')
+      await getNodes()
     } catch (ex: unknown) {
       if (ex instanceof AxiosError) {
         useNotify(ex.response?.data.message, 'warning', 'negative')
